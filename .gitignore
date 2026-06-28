@@ -1,0 +1,22 @@
+# Added by code-review-graph
+.code-review-graph/
+
+# Secrets
+.env
+cookies.txt
+
+# Agent / IDE configs
+.agents/
+.claude/
+.gemini/
+.kiro/
+.qoder/
+.vscode/
+.mcp.json
+.opencode.json
+.cursorrules
+.windsurfrules
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+QODER.md

@@ -1,0 +1,48 @@
+version: "3.9"
+
+# ============================================================
+# KnowledgeFlow — Docker Compose
+# Usage:
+#   1. cp .env.example .env && fill in your values
+#   2. docker-compose up --build
+# ============================================================
+
+services:
+  knowledgeflow:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: knowledgeflow
+    restart: unless-stopped
+
+    # Load all secrets from .env
+    env_file:
+      - .env
+
+    volumes:
+      # Persist OCR model downloads (EasyOCR) across container restarts
+      - easyocr_models:/app/.easyocr
+
+      # Persist intermediate processing cache
+      - ./cache_data:/app/.cache
+
+      # Mount prompts directory — edit prompts without rebuilding
+      - ./prompts:/app/prompts:ro
+
+      # Mount logs directory for persistence
+      - ./logs:/app/logs
+
+      # Mount cookies file so it can be updated live without rebuilding
+      - ./cookies.txt:/app/cookies.txt:ro
+
+    # Health check — verify the Python process is alive
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  easyocr_models:
+    driver: local

@@ -1,0 +1,1 @@
+"""KnowledgeFlow — Telegram adapter package."""

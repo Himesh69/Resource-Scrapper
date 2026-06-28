@@ -1,0 +1,49 @@
+# ============================================================
+# KnowledgeFlow — LLM Model Routing
+# All models accessed via OpenRouter (https://openrouter.ai)
+#
+# Task routing:
+#   extraction    → KnowledgeBuilderAgent, ResourceExtractorAgent
+#   summary       → TranscriptAgent (summarization step)
+#   classification → CategorizationAgent
+#   enrichment    → EnrichmentAgent
+#   deduplication → DeduplicationAgent
+# ============================================================
+
+models:
+  extraction:
+    model: meta-llama/llama-3.3-70b-instruct:free
+    temperature: 0.1
+    max_tokens: 4096
+    json_mode: true
+
+  summary:
+    model: meta-llama/llama-3.3-70b-instruct:free
+    temperature: 0.2
+    max_tokens: 4096
+    json_mode: true
+
+  classification:
+    model: meta-llama/llama-3.1-8b-instruct:free
+    temperature: 0.0
+    max_tokens: 1024
+    json_mode: true
+
+  enrichment:
+    model: meta-llama/llama-3.3-70b-instruct:free
+    temperature: 0.1
+    max_tokens: 4096
+    json_mode: true
+
+  deduplication:
+    model: meta-llama/llama-3.1-8b-instruct:free
+    temperature: 0.0
+    max_tokens: 512
+    json_mode: true
+
+# Fallback model used when ALL retries on a primary model fail
+fallback:
+  model: meta-llama/llama-3.1-8b-instruct:free
+  temperature: 0.2
+  max_tokens: 2048
+  json_mode: false

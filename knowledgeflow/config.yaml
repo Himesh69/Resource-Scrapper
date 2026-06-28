@@ -1,0 +1,105 @@
+# ============================================================
+# KnowledgeFlow — Application Configuration
+# Modify these values to tune pipeline behaviour.
+# ============================================================
+
+app:
+  name: KnowledgeFlow
+  version: "1.0.0"
+
+pipeline:
+  # Max retries for transient failures (LLM timeout, network errors)
+  max_retries: 3
+  # Initial retry delay in seconds (doubles each attempt: 2 → 4 → 8)
+  retry_initial_delay: 2
+  # Hard cap on retry delay
+  retry_max_delay: 30
+
+ocr:
+  # Extract one frame every N seconds (periodic sampling)
+  frame_interval_seconds: 1
+  # Minimum confidence score to include detected text (0.0–1.0)
+  confidence_threshold: 0.6
+  # Maximum frames to process per video (cost control)
+  max_frames: 30
+  # Languages to detect (auto if empty)
+  languages: ["en"]
+
+deduplication:
+  # Fuzzy match threshold for resource name similarity (0–100)
+  name_similarity_threshold: 85
+  # Max Notion records to scan for duplicates
+  max_check_records: 200
+
+notion:
+  # Delay between Notion API calls (ms) — Notion limit: 3 req/s
+  request_delay_ms: 400
+
+# ── yt-dlp Configuration ──────────────────────────────────────
+ytdlp:
+  # Path to a Netscape format cookies.txt file (most reliable method)
+  # Save this file in the project root (knowledgeflow/cookies.txt)
+  cookies_file: "cookies.txt"
+  
+  # Fallback: Browser to extract cookies from (chrome, edge, firefox)
+  # Leave empty ("") to disable
+  cookies_from_browser: ""
+
+# ── Allowed categories (used by CategorizationAgent) ─────────
+categories:
+  primary:
+    - Programming
+    - Artificial Intelligence
+    - Machine Learning
+    - Data Science
+    - DevOps & Cloud
+    - Cybersecurity
+    - Entrepreneurship
+    - Product Management
+    - Design & UX
+    - Marketing
+    - Finance
+    - Science
+    - Mathematics
+    - Health & Wellness
+    - Personal Development
+    - Other
+
+  difficulty:
+    - Beginner
+    - Intermediate
+    - Advanced
+    - Expert
+
+# ── Allowed resource types (used by ResourceExtractorAgent) ──
+resource_types:
+  - Website
+  - GitHub Repository
+  - Documentation
+  - Book
+  - Research Paper
+  - Course
+  - AI Tool
+  - Framework
+  - Library
+  - API
+  - Company
+  - Person
+  - Newsletter
+  - Podcast
+  - YouTube Channel
+  - Discord Community
+  - Prompt
+  - Template
+  - Other
+
+# ── Supported input platforms ─────────────────────────────────
+supported_platforms:
+  - instagram
+  - youtube
+  - x
+  - twitter
+  - linkedin
+  - pdf
+  - image
+  - text
