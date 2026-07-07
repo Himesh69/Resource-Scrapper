@@ -15,6 +15,7 @@ Your response must be a JSON object with this schema:
       "resource_type": "Must be one of: 'Website', 'GitHub Repository', 'Documentation', 'Book', 'Research Paper', 'Course', 'AI Tool', 'Framework', 'Library', 'API', 'Company', 'Person', 'Newsletter', 'Podcast', 'YouTube Channel', 'Discord Community', 'Prompt', 'Template', 'Other'",
       "url": "The URL exactly as it appears in the source text. If NO URL is explicitly written in the caption/pinned comment/OCR text, leave this field EMPTY. DO NOT guess, construct, or infer URLs.",
       "description": "Brief context on how this resource was mentioned and why it is useful",
+      "prompts": "If this resource is a prompt, template, or code snippet, put the EXACT VERBATIM text here. Otherwise leave empty.",
       "tags": ["relevant", "tags"],
       "confidence": 0.0 to 1.0
     }
@@ -37,7 +38,7 @@ STRICT RULES — READ CAREFULLY:
    - Tool names, app names, library names
    - Book titles, course names, channel references
 
-6. If a prompt template, step-by-step guide, or code snippet is shared in the caption or pinned comment, extract it as a resource with type "Prompt" or "Template". Include the EXACT, VERBATIM text in the description field.
+6. If a prompt template, step-by-step guide, or code snippet is shared in the caption or pinned comment, extract it as a resource with type "Prompt" or "Template". Include the EXACT, VERBATIM text in the `prompts` field. DO NOT summarize, process, rephrase, or shorten the prompt text in any way. It must remain perfectly intact exactly as written by the creator.
 
 7. Resources without a URL are only valid if resource_type is "Prompt", "Template", "Book", or "Research Paper" AND the resource is the main subject of the content.
 

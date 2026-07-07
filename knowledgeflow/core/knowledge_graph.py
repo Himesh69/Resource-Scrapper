@@ -136,6 +136,7 @@ class Resource(BaseModel):
     resource_type: ResourceType = ResourceType.OTHER
     url: str = ""
     description: str = ""
+    prompts: str = ""
     tags: list[str] = Field(default_factory=list)
     enriched: bool = False
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)

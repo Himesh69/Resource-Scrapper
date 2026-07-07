@@ -36,10 +36,8 @@ class Settings(BaseSettings):
         description="Telegram Bot API token from BotFather"
     )
 
-    # ── LLM Provider ─────────────────────────────────────────
-    # Supports Google AI Studio (primary) or OpenRouter (fallback)
+    # ── LLM Provider (Google AI Studio) ────────────────────────
     google_ai_api_key: str = Field(
-        default="",
         description="Google AI Studio API key (https://aistudio.google.com)",
     )
     google_ai_base_url: str = Field(
@@ -47,40 +45,20 @@ class Settings(BaseSettings):
         description="Google AI Studio OpenAI-compatible endpoint",
     )
 
-    # OpenRouter (used as fallback if Google AI key is not set)
-    openrouter_api_key: str = Field(
-        default="",
-        description="OpenRouter API key (https://openrouter.ai/keys)",
-    )
-    openrouter_base_url: str = Field(
-        default="https://openrouter.ai/api/v1",
-        description="OpenRouter base URL — OpenAI-compatible endpoint",
-    )
-    openrouter_site_url: str = Field(
-        default="https://github.com/knowledgeflow",
-        description="Sent to OpenRouter as HTTP-Referer for attribution",
-    )
-    openrouter_app_name: str = Field(
-        default="KnowledgeFlow",
-        description="Sent to OpenRouter as X-Title for attribution",
-    )
-
     @property
     def llm_api_key(self) -> str:
-        """Return the active LLM provider API key (Google AI Studio preferred)."""
-        return self.google_ai_api_key or self.openrouter_api_key
+        """Return the Google AI Studio API key."""
+        return self.google_ai_api_key
 
     @property
     def llm_base_url(self) -> str:
-        """Return the active LLM base URL (Google AI Studio preferred)."""
-        if self.google_ai_api_key:
-            return self.google_ai_base_url
-        return self.openrouter_base_url
+        """Return the Google AI Studio base URL."""
+        return self.google_ai_base_url
 
     @property
     def llm_provider(self) -> str:
-        """Return which LLM provider is active."""
-        return "google_ai_studio" if self.google_ai_api_key else "openrouter"
+        """Return the LLM provider identifier."""
+        return "google_ai_studio"
 
     # ── Notion ───────────────────────────────────────────────
     notion_token: str = Field(

@@ -58,10 +58,22 @@ async def with_retry(
 
         except LLMRateLimitError as exc:
             last_error = exc
+            exc_str = str(exc)
+
+            # Daily quota exhausted — retrying is pointless, fail fast
+            if "PerDay" in exc_str or "per day" in exc_str.lower():
+                log.error(
+                    "llm.quota_daily_exhausted",
+                    agent=agent_name,
+                    task=task,
+                    error=exc_str,
+                    hint="Google AI Studio daily quota reached. Wait until midnight PT or generate a new API key at https://aistudio.google.com/apikey",
+                )
+                raise
+
             # Try to extract exact wait time from Google's quota error message
             import re
             wait = min(delay * 2, max_delay)
-            exc_str = str(exc)
             match = re.search(r"Please retry in ([0-9.]+)s", exc_str, re.IGNORECASE)
             if match:
                 try:

@@ -246,6 +246,7 @@ class NotionSync:
                 "Type": format_select(res.resource_type.value),
                 "URL": format_url(res.url),
                 "Description": format_rich_text(res.description),
+                "Prompts": format_rich_text(res.prompts),
                 "Tags": format_multi_select(res.tags),
                 "Enriched": format_checkbox(res.enriched),
                 "Source Title": format_rich_text(source_title),

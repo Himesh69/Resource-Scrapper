@@ -4,13 +4,13 @@ KnowledgeFlow — Static LLM Model Router
 Reads models.yaml and returns the model configuration for each task.
 If a task key is not found, falls back to the 'fallback' model.
 
-Task → Model mapping (see models.yaml):
-  extraction    → google/gemini-2.5-flash  (JSON mode)
-  summary       → anthropic/claude-3-haiku    (Text mode)
-  classification→ google/gemini-2.5-flash  (JSON mode)
-  enrichment    → google/gemini-2.5-flash  (JSON mode)
-  deduplication → google/gemini-2.5-flash  (JSON mode)
-  fallback      → meta-llama/llama-3.1-8b-instruct:free
+Task → Model mapping (see models.yaml) — ALL :free variants:
+  extraction    → google/gemma-4-26b-a4b-it:free        (JSON mode, 1024 tokens)
+  summary       → meta-llama/llama-3.3-70b-instruct:free (Text mode, 1024 tokens)
+  classification→ google/gemma-4-26b-a4b-it:free        (JSON mode, 512 tokens)
+  enrichment    → google/gemma-4-26b-a4b-it:free        (JSON mode, 1024 tokens)
+  deduplication → google/gemma-4-26b-a4b-it:free        (JSON mode, 256 tokens)
+  fallback      → google/gemma-4-26b-a4b-it:free        (512 tokens)
 """
 from __future__ import annotations
 
@@ -42,9 +42,9 @@ def get_model_config(task: str) -> dict[str, Any]:
 
     models = model_config.get("models", {})
     fallback = model_config.get("fallback", {
-        "model": "meta-llama/llama-3.1-8b-instruct:free",
+        "model": "google/gemma-4-26b-a4b-it:free",
         "temperature": 0.2,
-        "max_tokens": 2048,
+        "max_tokens": 1024,
         "json_mode": False,
     })
 

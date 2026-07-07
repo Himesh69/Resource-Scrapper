@@ -1,6 +1,12 @@
 # ============================================================
 # KnowledgeFlow — LLM Model Routing
-# All models accessed via OpenRouter (https://openrouter.ai)
+# Primary: Google AI Studio (FREE Gemini 2.5 Flash)
+# Fallback: OpenRouter free models (if Google AI fails)
+#
+# Google AI Studio free tier limits:
+#   - 15 requests/minute
+#   - 1,000,000 tokens/minute
+#   - 1,500 requests/day
 #
 # Task routing:
 #   extraction    → KnowledgeBuilderAgent, ResourceExtractorAgent
@@ -12,38 +18,38 @@
 
 models:
   extraction:
-    model: meta-llama/llama-3.3-70b-instruct:free
+    model: gemini-2.5-flash
     temperature: 0.1
     max_tokens: 4096
     json_mode: true
 
   summary:
-    model: meta-llama/llama-3.3-70b-instruct:free
+    model: gemini-2.5-flash
     temperature: 0.2
+    max_tokens: 4096
+    json_mode: false
+
+  classification:
+    model: gemini-2.5-flash
+    temperature: 0.0
     max_tokens: 4096
     json_mode: true
 
-  classification:
-    model: meta-llama/llama-3.1-8b-instruct:free
-    temperature: 0.0
-    max_tokens: 1024
-    json_mode: true
-
   enrichment:
-    model: meta-llama/llama-3.3-70b-instruct:free
+    model: gemini-2.5-flash
     temperature: 0.1
     max_tokens: 4096
     json_mode: true
 
   deduplication:
-    model: meta-llama/llama-3.1-8b-instruct:free
+    model: gemini-2.5-flash
     temperature: 0.0
     max_tokens: 512
     json_mode: true
 
-# Fallback model used when ALL retries on a primary model fail
+# Fallback model — still via Google AI Studio
 fallback:
-  model: meta-llama/llama-3.1-8b-instruct:free
+  model: gemini-2.5-flash
   temperature: 0.2
   max_tokens: 2048
   json_mode: false
