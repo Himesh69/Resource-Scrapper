@@ -103,8 +103,11 @@ class CategorizationAgent(BaseAgent):
                 difficulty=kg.source.difficulty.value
             )
 
-        except LLMError:
-            raise
+        except LLMError as exc:
+            self._log.warning("categorization.llm_failed", error=str(exc))
+            kg.add_warning(f"Categorization LLM failed: {exc}. Using default classifications.")
+            kg.source.primary_category = "Other"
+            kg.source.difficulty = Difficulty.BEGINNER
         except Exception as exc:
             raise AgentError(self.name, f"Categorization classification failed: {exc}", recoverable=True) from exc
 

@@ -117,7 +117,7 @@ async def with_retry(
                     agent=agent_name,
                     task=task,
                     error=str(exc),
-                    hint="Top up OpenRouter credits at https://openrouter.ai/settings/credits",
+                    hint="Check your Google AI Studio billing at https://aistudio.google.com",
                 )
                 raise
             # Non-retriable LLM error (e.g. bad request, parse failure)

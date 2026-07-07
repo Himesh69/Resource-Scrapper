@@ -20,7 +20,7 @@ python-telegram-bot==21.3
 # --- Notion SDK ---
 notion-client==2.2.1
 
-# --- LLM — OpenRouter (OpenAI-compatible) ---
+# --- LLM — Google AI Studio (OpenAI-compatible) ---
 openai==1.35.0
 
 # --- Media Download (Instagram, YouTube via URL) ---

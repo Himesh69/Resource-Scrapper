@@ -40,7 +40,7 @@ STRICT RULES — READ CAREFULLY:
 
 6. If a prompt template, step-by-step guide, or code snippet is shared in the caption or pinned comment, extract it as a resource with type "Prompt" or "Template". Include the EXACT, VERBATIM text in the `prompts` field. DO NOT summarize, process, rephrase, or shorten the prompt text in any way. It must remain perfectly intact exactly as written by the creator.
 
-7. Resources without a URL are only valid if resource_type is "Prompt", "Template", "Book", or "Research Paper" AND the resource is the main subject of the content.
+7. Resources without a URL are valid and should be extracted as long as they are explicitly mentioned and relevant (e.g., AI Tools, Frameworks, Books, Channels, Companies). Only generic "Websites" require an explicit URL.
 
 8. If no resources are found, return `{"resources": []}`.
 

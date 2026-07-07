@@ -15,7 +15,7 @@ Your response must be a JSON object matching this schema:
   "topics": ["list of main subjects or categories, e.g., 'Python', 'Machine Learning', 'Asyncio'"],
   "entities": [
     {
-      "name": "Entity Name (e.g. 'FastAPI', 'Guido van Rossum', 'OpenRouter')",
+      "name": "Entity Name (e.g. 'FastAPI', 'Guido van Rossum', 'LangChain')",
       "entity_type": "one of: 'technology', 'library', 'framework', 'person', 'concept', 'company', 'tool'",
       "description": "Brief context of what this entity is and how it relates to this content"
     }

@@ -26,8 +26,8 @@ from config import app_config
 
 log = structlog.get_logger(__name__)
 
-# Maximum number of frames to analyze with vision LLM (cost control)
-_MAX_VISION_FRAMES = 2
+# Maximum number of frames to analyze with vision LLM
+_MAX_VISION_FRAMES = 5
 
 
 class VisualResourceExtractorAgent(BaseAgent):
@@ -60,9 +60,8 @@ class VisualResourceExtractorAgent(BaseAgent):
                 results.append(res)
             except Exception as exc:
                 results.append(exc)
-            # Sleep between frames to stay within Google AI Studio's free-tier RPM limits
-            # Free tier: 10-15 RPM, 20 RPD — need generous spacing
-            await asyncio.sleep(4.0)
+            # Small sleep to pace API calls nicely
+            await asyncio.sleep(1.0)
 
         youtube_refs: list[dict] = []
         for i, result in enumerate(results):

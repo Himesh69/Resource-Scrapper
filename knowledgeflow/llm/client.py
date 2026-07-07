@@ -1,7 +1,7 @@
 """
 KnowledgeFlow — LLM Client
 
-Wraps the OpenAI-compatible API (Google AI Studio or OpenRouter) using the openai SDK.
+Wraps Google AI Studio's OpenAI-compatible API using the openai SDK.
 All LLM calls across the pipeline go through this client.
 
 Features:
@@ -9,8 +9,7 @@ Features:
   - JSON mode (structured output)
   - Automatic retry with exponential backoff (via llm/retry.py)
   - Task-based model routing (via llm/router.py)
-  - Audio transcription via Gemini multimodal (Google AI Studio) or Whisper (OpenRouter)
-  - Provider auto-detection from config
+  - Audio transcription via Gemini multimodal
 
 Usage:
     from llm.client import LLMClient
@@ -42,36 +41,25 @@ log = structlog.get_logger(__name__)
 
 class LLMClient:
     """
-    Async LLM client supporting Google AI Studio (primary) and OpenRouter (fallback).
+    Async LLM client for Google AI Studio (Gemini).
 
     All agents share a single instance of this class (injected by the pipeline).
     """
 
     def __init__(self) -> None:
-        provider = settings.llm_provider
         api_key = settings.llm_api_key
         base_url = settings.llm_base_url
 
         if not api_key:
             raise RuntimeError(
-                "No LLM API key configured. Set GOOGLE_AI_API_KEY or OPENROUTER_API_KEY in .env"
+                "No LLM API key configured. Set GOOGLE_AI_API_KEY in .env"
             )
-
-        # Build headers (OpenRouter needs attribution headers; Google AI Studio doesn't)
-        headers = {}
-        if provider == "openrouter":
-            headers = {
-                "HTTP-Referer": settings.openrouter_site_url,
-                "X-Title": settings.openrouter_app_name,
-            }
 
         self._client = AsyncOpenAI(
             api_key=api_key,
             base_url=base_url,
-            default_headers=headers,
         )
-        self._provider = provider
-        self._log = log.bind(component="LLMClient", provider=provider)
+        self._log = log.bind(component="LLMClient", provider="google_ai_studio")
         self._log.info("llm.client.initialized", base_url=base_url)
 
     async def complete(
@@ -109,9 +97,9 @@ class LLMClient:
         max_tokens  = override_max_tokens or model_cfg.get("max_tokens", 2048)
         json_mode   = model_cfg.get("json_mode", False)
 
-        # For Google AI Studio, model names don't need provider prefix
+        # Google AI Studio model names don't need provider prefix
         # (e.g. "gemini-2.5-flash" not "google/gemini-2.5-flash")
-        if self._provider == "google_ai_studio" and "/" in model:
+        if "/" in model:
             model = model.split("/", 1)[1]
 
         call_kwargs: dict[str, Any] = {
@@ -161,19 +149,167 @@ class LLMClient:
         """
         Same as `complete()` but parses and returns the JSON response.
 
+        Includes repair logic for truncated JSON (e.g. when max_tokens cuts
+        the response mid-stream).  It attempts to close unclosed braces and
+        brackets so that partial data can still be salvaged.
+
         Raises:
-            LLMResponseParseError — if the response is not valid JSON.
+            LLMResponseParseError — if the response is not valid JSON even
+                                    after repair attempts.
         """
         raw = await self.complete(task=task, messages=messages, agent_name=agent_name)
+
+        # ── Pipeline: direct parse → extract embedded → truncated repair ──
+        cleaned = self._strip_fences(raw)
+
+        # 1. Direct parse
         try:
-            # Strip markdown code fences if present (some models add them)
-            cleaned = raw.strip()
-            if cleaned.startswith("```"):
-                lines = cleaned.split("\n")
-                cleaned = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
             return json.loads(cleaned)
-        except (json.JSONDecodeError, ValueError) as exc:
-            raise LLMResponseParseError(agent_name, raw) from exc
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+        # 2. Try to extract a JSON object from preamble text
+        #    e.g. "Here is the JSON requested:\n{...}"
+        extracted = self._extract_json_from_text(raw)
+        if extracted is not None:
+            self._log.debug(
+                "llm.json_extracted_from_preamble",
+                agent=agent_name,
+                task=task,
+            )
+            return extracted
+
+        # 3. Attempt to repair truncated JSON
+        repaired = self._repair_truncated_json(raw)
+        if repaired is not None:
+            self._log.warning(
+                "llm.json_repaired",
+                agent=agent_name,
+                task=task,
+                hint="Response was truncated; partial data salvaged.",
+            )
+            return repaired
+
+        raise LLMResponseParseError(agent_name, raw)
+
+    @staticmethod
+    def _strip_fences(raw: str) -> str:
+        """Strip markdown code fences if present."""
+        cleaned = raw.strip()
+        if cleaned.startswith("```"):
+            lines = cleaned.split("\n")
+            cleaned = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+        return cleaned.strip()
+
+    @staticmethod
+    def _extract_json_from_text(raw: str) -> dict[str, Any] | None:
+        """
+        Find and parse the first top-level JSON object in the raw text.
+
+        Handles cases where the model wraps JSON in markdown fences or
+        prepends conversational text like "Here is the JSON requested:".
+        """
+        # First strip markdown fences
+        text = raw.strip()
+        if "```" in text:
+            # Try to extract content between fences
+            import re
+            fence_match = re.search(r'```(?:json)?\s*\n?(.*?)```', text, re.DOTALL)
+            if fence_match:
+                try:
+                    return json.loads(fence_match.group(1).strip())
+                except (json.JSONDecodeError, ValueError):
+                    text = fence_match.group(1).strip()
+
+        # Find the first '{' and try progressively larger substrings
+        first_brace = text.find('{')
+        if first_brace == -1:
+            return None
+
+        # Find the last '}' and try to parse that span
+        last_brace = text.rfind('}')
+        if last_brace <= first_brace:
+            return None
+
+        candidate = text[first_brace:last_brace + 1]
+        try:
+            return json.loads(candidate)
+        except (json.JSONDecodeError, ValueError):
+            return None
+
+    @staticmethod
+    def _repair_truncated_json(raw: str) -> dict[str, Any] | None:
+        """
+        Best-effort repair of truncated JSON by closing unclosed delimiters.
+
+        Returns the parsed dict on success, or None if repair fails.
+        """
+        cleaned = raw.strip()
+        # Strip markdown fences
+        if cleaned.startswith("```"):
+            lines = cleaned.split("\n")
+            cleaned = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+            cleaned = cleaned.strip()
+
+        if not cleaned:
+            return None
+
+        # Trim trailing comma or colon that would make JSON invalid
+        cleaned = cleaned.rstrip().rstrip(",").rstrip(":")
+
+        # Remove a trailing incomplete string value (unmatched quote)
+        # e.g.  "description": "A set of practices combining...
+        # Count unescaped quotes
+        in_string = False
+        last_quote_idx = -1
+        i = 0
+        while i < len(cleaned):
+            ch = cleaned[i]
+            if ch == '\\' and in_string:
+                i += 2  # skip escaped char
+                continue
+            if ch == '"':
+                in_string = not in_string
+                last_quote_idx = i
+            i += 1
+
+        # If we ended inside a string, close it
+        if in_string and last_quote_idx >= 0:
+            cleaned = cleaned + '"'
+
+        # Remove trailing comma again after string closure
+        cleaned = cleaned.rstrip().rstrip(",")
+
+        # Close unclosed brackets/braces
+        stack: list[str] = []
+        in_str = False
+        j = 0
+        while j < len(cleaned):
+            ch = cleaned[j]
+            if ch == '\\' and in_str:
+                j += 2
+                continue
+            if ch == '"':
+                in_str = not in_str
+            elif not in_str:
+                if ch in ('{', '['):
+                    stack.append(ch)
+                elif ch == '}':
+                    if stack and stack[-1] == '{':
+                        stack.pop()
+                elif ch == ']':
+                    if stack and stack[-1] == '[':
+                        stack.pop()
+            j += 1
+
+        # Append closing delimiters in reverse order
+        for opener in reversed(stack):
+            cleaned += ']' if opener == '[' else '}'
+
+        try:
+            return json.loads(cleaned)
+        except (json.JSONDecodeError, ValueError):
+            return None
 
     async def transcribe(
         self,
@@ -181,10 +317,7 @@ class LLMClient:
         agent_name: str = "TranscriptAgent",
     ) -> str:
         """
-        Transcribe an audio file.
-
-        - Google AI Studio: Uses Gemini multimodal (send audio as base64 in chat message)
-        - OpenRouter: Uses Whisper API
+        Transcribe an audio file using Gemini multimodal (audio as base64 in chat message).
 
         Args:
             file_path: Path to the audio file on disk.
@@ -199,13 +332,6 @@ class LLMClient:
 
         self._log.debug("audio.transcribe.start", file=path.name, size=path.stat().st_size)
 
-        if self._provider == "google_ai_studio":
-            return await self._transcribe_gemini(path, agent_name)
-        else:
-            return await self._transcribe_whisper(path, agent_name)
-
-    async def _transcribe_gemini(self, path: Path, agent_name: str) -> str:
-        """Transcribe audio using Gemini's multimodal chat (Google AI Studio)."""
         # Read and encode audio as base64
         audio_bytes = path.read_bytes()
         audio_b64 = base64.b64encode(audio_bytes).decode()
@@ -257,25 +383,6 @@ class LLMClient:
                 return response.choices[0].message.content or ""
             except Exception as exc:
                 raise LLMError(agent_name, f"Gemini audio transcription failed: {exc}") from exc
-
-        return await with_retry(
-            _call,
-            agent_name=agent_name,
-            task="transcription",
-        )
-
-    async def _transcribe_whisper(self, path: Path, agent_name: str) -> str:
-        """Transcribe audio using OpenRouter's Whisper API."""
-        async def _call() -> str:
-            try:
-                with open(path, "rb") as audio_file:
-                    response = await self._client.audio.transcriptions.create(
-                        file=audio_file,
-                        model="openai/whisper-large-v3",
-                    )
-                    return response.text
-            except Exception as exc:
-                raise LLMError(agent_name, f"OpenRouter audio transcription failed: {exc}") from exc
 
         return await with_retry(
             _call,

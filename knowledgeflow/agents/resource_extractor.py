@@ -50,14 +50,6 @@ _PLATFORM_DOMAINS = frozenset({
 # Minimum confidence for LLM-extracted resources that have no URL
 _MIN_CONFIDENCE_NO_URL = 0.75
 
-# Resource types that are valid without a URL (knowledge artifacts, not links)
-_VALID_URLLESS_TYPES = frozenset({
-    ResourceType.PROMPT,
-    ResourceType.TEMPLATE,
-    ResourceType.BOOK,
-    ResourceType.RESEARCH_PAPER,
-})
-
 
 def _is_platform_url(url: str) -> bool:
     """Return True if this URL points to a content-hosting platform we should skip."""
@@ -129,11 +121,11 @@ class ResourceExtractorAgent(BaseAgent):
                         self._log.debug("resource_extractor.skipped_platform_url", url=url)
                         continue
 
-                    # Resources without a URL are only kept if they're knowledge artifacts
-                    # AND the LLM is confident enough
+                    # Resources without a URL are kept if they are not explicitly Websites
+                    # AND the LLM is confident enough.
                     if not url:
                         confidence = float(r_data.get("confidence", 0))
-                        if r_type not in _VALID_URLLESS_TYPES or confidence < _MIN_CONFIDENCE_NO_URL:
+                        if r_type == ResourceType.WEBSITE or confidence < _MIN_CONFIDENCE_NO_URL:
                             self._log.debug(
                                 "resource_extractor.skipped_no_url",
                                 name=r_data.get("name"),

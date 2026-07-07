@@ -20,7 +20,7 @@ Resource Scrapper (internally known as KnowledgeFlow) is a **multi-agent AI pipe
 |---|---|
 | **🤖 Telegram Bot Interface** | Send a reel/video URL to the bot and get a structured knowledge summary back. |
 | **🎬 Multi-Platform Support** | Instagram Reels, YouTube videos, X/Twitter posts, LinkedIn articles. |
-| **🔊 Audio Transcription** | Transcribes video audio via OpenRouter (Whisper-compatible models) or Google AI. |
+| **🔊 Audio Transcription** | Transcribes video audio via Google AI Studio (Gemini multimodal). |
 | **👁️ OCR Extraction** | Captures and reads on-screen text from video frames using EasyOCR. |
 | **🧩 AI Knowledge Extraction** | Uses LLMs to extract topics, key takeaways, summaries, and resources. |
 | **📚 Notion Sync** | Creates structured entries across 5 Notion databases (Sources, Knowledge, Resources, Creators, Categories). |
@@ -62,7 +62,7 @@ Each agent receives a `KnowledgeGraph` object, enriches it, and passes it to the
 
 - **Python 3.11+**
 - **Telegram Bot Token** — from [@BotFather](https://t.me/BotFather)
-- **OpenRouter API Key** — from [openrouter.ai/keys](https://openrouter.ai/keys)
+- **Google AI Studio API Key** — from [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
 - **Notion Integration Token** — from [Notion Integrations](https://www.notion.so/my-integrations)
 
 ### 1. Clone & Install
@@ -115,7 +115,7 @@ docker-compose up --build
 
 ### Model Routing (`models.yaml`)
 
-Resource Scrapper routes different agent tasks to different LLM models for cost/quality optimization via OpenRouter. You can easily configure which models to use in `models.yaml`.
+Resource Scrapper routes different agent tasks to Gemini models via Google AI Studio. You can easily configure which models to use in `models.yaml`.
 
 ### 🍪 Instagram Authentication (`cookies.txt`)
 
@@ -137,5 +137,5 @@ MIT License.
 ---
 
 <div align="center">
-  Built with ❤️ using Python, python-telegram-bot, OpenRouter, and Notion API.
+  Built with ❤️ using Python, python-telegram-bot, Google AI Studio, and Notion API.
 </div>

@@ -2,7 +2,7 @@
 KnowledgeFlow — Transcript Agent
 
 Extracts audio from video files using ffmpeg.
-Transcribes audio using OpenRouter's Whisper API.
+Transcribes audio using Gemini multimodal API.
 Summarizes the transcript (or fallback context) using the prompt system.
 """
 from __future__ import annotations
@@ -49,7 +49,7 @@ class TranscriptAgent(BaseAgent):
                 # Extract audio from video
                 audio_extracted = await self._extract_audio(media_path, audio_path)
                 if audio_extracted and audio_path.exists() and audio_path.stat().st_size > 0:
-                    # Transcribe audio using OpenRouter Whisper API
+                    # Transcribe audio using Gemini multimodal API
                     self._log.info("transcript.transcribing", path=str(audio_path))
                     raw_transcript = await self.client.transcribe(audio_path, agent_name=self.name)
                     kg.metadata.raw_transcript = raw_transcript.strip()

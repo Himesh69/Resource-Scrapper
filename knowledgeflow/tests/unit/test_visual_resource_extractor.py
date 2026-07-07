@@ -59,12 +59,13 @@ async def test_vision_detects_youtube_and_searches(mock_llm_client, mock_frames)
 
     # Mock the LLM to say it found a YouTube video on the first frame, and nothing on others
     async def mock_complete_json(*args, **kwargs):
-        # We can just return the same result for all frames since unique_refs will deduplicate it
         return {
             "is_youtube": True,
-            "title": "Learn FastAPI in 10 Minutes",
-            "channel": "Tech Channel",
-            "url": ""
+            "videos": [{
+                "title": "Learn FastAPI in 10 Minutes",
+                "channel": "Tech Channel",
+                "url": ""
+            }]
         }
 
     mock_llm_client.complete_json = AsyncMock(side_effect=mock_complete_json)
@@ -116,9 +117,11 @@ async def test_vision_detects_youtube_with_url(mock_llm_client, mock_frames) -> 
     async def mock_complete_json(*args, **kwargs):
         return {
             "is_youtube": True,
-            "title": "Direct URL Video",
-            "channel": "Awesome Creator",
-            "url": "https://youtu.be/12345678901"
+            "videos": [{
+                "title": "Direct URL Video",
+                "channel": "Awesome Creator",
+                "url": "https://youtu.be/12345678901"
+            }]
         }
 
     mock_llm_client.complete_json = AsyncMock(side_effect=mock_complete_json)

@@ -1,11 +1,11 @@
 """
 End-to-end test skeleton for the full KnowledgeFlow pipeline.
 
-These tests require real credentials (OPENROUTER_API_KEY, NOTION_TOKEN, etc.)
+These tests require real credentials (GOOGLE_AI_API_KEY, NOTION_TOKEN, etc.)
 and network access. They are excluded from CI and meant for manual verification.
 
 Run with:
-    TELEGRAM_BOT_TOKEN=xxx OPENROUTER_API_KEY=xxx NOTION_TOKEN=xxx \\
+    TELEGRAM_BOT_TOKEN=xxx GOOGLE_AI_API_KEY=xxx NOTION_TOKEN=xxx \\
     pytest tests/e2e/test_full_flow.py -v -s
 """
 from __future__ import annotations
@@ -17,10 +17,10 @@ import pytest
 # Skip all tests in this module if the required env vars are missing
 pytestmark = pytest.mark.skipif(
     not all([
-        os.getenv("OPENROUTER_API_KEY"),
+        os.getenv("GOOGLE_AI_API_KEY"),
         os.getenv("NOTION_TOKEN"),
     ]),
-    reason="E2E tests require OPENROUTER_API_KEY and NOTION_TOKEN env vars"
+    reason="E2E tests require GOOGLE_AI_API_KEY and NOTION_TOKEN env vars"
 )
 
 

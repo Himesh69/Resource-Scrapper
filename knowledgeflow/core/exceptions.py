@@ -135,7 +135,7 @@ class LLMTimeoutError(LLMError):
 
 
 class LLMRateLimitError(LLMError):
-    """OpenRouter rate limit hit — retriable after delay."""
+    """Google AI Studio rate limit hit — retriable after delay."""
 
 
 class LLMResponseParseError(LLMError):
@@ -149,7 +149,7 @@ class LLMResponseParseError(LLMError):
         super().__init__(
             agent_name,
             f"Failed to parse LLM JSON response. Preview: {raw_response[:300]}",
-            recoverable=False,
+            recoverable=True,
         )
 
 
