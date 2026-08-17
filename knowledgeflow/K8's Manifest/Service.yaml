@@ -1,0 +1,20 @@
+# ============================================================
+# KnowledgeFlow — Headless Service
+# Since KnowledgeFlow is a worker process (Telegram bot) with
+# no HTTP server, this is a headless Service (clusterIP: None)
+# for DNS-based pod discovery within the cluster.
+#
+# This allows other services to resolve the pod via:
+#   knowledgeflow.<namespace>.svc.cluster.local
+# ============================================================
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: knowledgeflow
+  labels:
+    app: knowledgeflow
+spec:
+  clusterIP: None
+  selector:
+    app: knowledgeflow

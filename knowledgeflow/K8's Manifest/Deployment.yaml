@@ -1,0 +1,280 @@
+# ============================================================
+# KnowledgeFlow — Kubernetes Deployment
+# Image is pulled from Azure Container Registry (ACR).
+#
+# Prerequisites:
+#   1. Enable Secrets Store CSI Driver addon on AKS:
+#      az aks enable-addons --addons azure-keyvault-secrets-provider \
+#        -n <cluster> -g <rg>
+#
+#   2. Create the SecretProviderClass (see SecretProviderClass below)
+#
+#   3. Create the non-critical ConfigMap:
+#      kubectl create configmap knowledgeflow-env \
+#        --from-literal=GOOGLE_AI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/ \
+#        --from-literal=NOTION_SOURCES_DB_ID=<id> \
+#        --from-literal=NOTION_RESOURCES_DB_ID=<id> \
+#        --from-literal=NOTION_CATEGORIES_DB_ID=<id> \
+#        --from-literal=NOTION_CREATORS_DB_ID=<id> \
+#        --from-literal=NOTION_KNOWLEDGE_DB_ID=<id> \
+#        --from-literal=MAX_CONCURRENT_JOBS=3 \
+#        --from-literal=KEEP_CACHE=false \
+#        --from-literal=LOG_LEVEL=INFO
+#
+#   4. Create ConfigMaps for files:
+#      kubectl create configmap knowledgeflow-config \
+#        --from-file=config.yaml=config.yaml
+#      kubectl create configmap knowledgeflow-cookies \
+#        --from-file=cookies.txt=cookies.txt
+#
+#   5. Ensure your AKS cluster is attached to your ACR:
+#      az aks update -n <cluster> -g <rg> --attach-acr <acr-name>
+# ============================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: knowledgeflow
+  labels:
+    app: knowledgeflow
+    version: "1.0.0"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: knowledgeflow
+  template:
+    metadata:
+      labels:
+        app: knowledgeflow
+        version: "1.0.0"
+    spec:
+      containers:
+        - name: knowledgeflow
+          # ── ACR Image ────────────────────────────────────────
+          image: resourcescrapperacr.azurecr.io/resourcescrapper:latest
+          imagePullPolicy: Always
+
+          # No ports exposed — this is a worker process (Telegram bot),
+          # not an HTTP server.
+
+          # ── Critical Secrets (from Azure Key Vault via CSI) ──
+          # Synced from Key Vault → K8s Secret by the
+          # SecretProviderClass defined at the end of this file.
+          env:
+            - name: TELEGRAM_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: knowledgeflow-kv-secrets
+                  key: TELEGRAM-BOT-TOKEN
+            - name: GOOGLE_AI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: knowledgeflow-kv-secrets
+                  key: GOOGLE-AI-API-KEY
+            - name: NOTION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: knowledgeflow-kv-secrets
+                  key: NOTION-TOKEN
+            # ── Static (non-sensitive) ──
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+            - name: EASYOCR_MODULE_PATH
+              value: /app/.easyocr
+            - name: CACHE_DIR
+              value: /app/.cache
+
+          # ── Non-Critical Config (from ConfigMap) ──────────────
+          envFrom:
+            - configMapRef:
+                name: knowledgeflow-env
+
+          # ── Resource Limits ──────────────────────────────────
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 2Gi
+
+          # ── Volume Mounts ────────────────────────────────────
+          volumeMounts:
+            # Persist EasyOCR model downloads across pod restarts
+            - name: easyocr-models
+              mountPath: /app/.easyocr
+
+            # Persist intermediate processing cache
+            - name: cache-data
+              mountPath: /app/.cache
+
+            # Mount prompts directory (read-only, from repo/image)
+            - name: prompts
+              mountPath: /app/prompts
+              readOnly: true
+
+            # Mount config.yaml from ConfigMap
+            - name: config
+              mountPath: /app/config.yaml
+              subPath: config.yaml
+              readOnly: true
+
+            # Mount cookies.txt from ConfigMap
+            - name: cookies
+              mountPath: /app/cookies.txt
+              subPath: cookies.txt
+              readOnly: true
+
+            # Logs directory
+            - name: logs
+              mountPath: /app/logs
+
+            # Azure Key Vault secrets (CSI Secrets Store)
+            - name: secrets-store-inline
+              mountPath: /mnt/secrets-store
+              readOnly: true
+
+          # ── Health Check ─────────────────────────────────────
+          # Matches the docker-compose healthcheck
+          livenessProbe:
+            exec:
+              command: ["python", "-c", "import sys; sys.exit(0)"]
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+
+          startupProbe:
+            exec:
+              command: ["python", "-c", "import sys; sys.exit(0)"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 6
+
+          readinessProbe:
+            exec:
+              command: ["python", "-c", "import sys; sys.exit(0)"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+      # ── Volumes ────────────────────────────────────────────
+      volumes:
+        - name: easyocr-models
+          persistentVolumeClaim:
+            claimName: knowledgeflow-easyocr-pvc
+
+        - name: cache-data
+          persistentVolumeClaim:
+            claimName: knowledgeflow-cache-pvc
+
+        - name: prompts
+          emptyDir: {}
+
+        - name: config
+          configMap:
+            name: knowledgeflow-config
+
+        - name: cookies
+          configMap:
+            name: knowledgeflow-cookies
+
+        - name: logs
+          emptyDir: {}
+
+        # Azure Key Vault secrets via CSI Secrets Store Driver
+        - name: secrets-store-inline
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: knowledgeflow-kv
+
+      restartPolicy: Always
+
+---
+# ============================================================
+# PersistentVolumeClaim — EasyOCR Models
+# ============================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: knowledgeflow-easyocr-pvc
+  labels:
+    app: knowledgeflow
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+# ============================================================
+# PersistentVolumeClaim — Cache Data
+# ============================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: knowledgeflow-cache-pvc
+  labels:
+    app: knowledgeflow
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+# ============================================================
+# SecretProviderClass — Azure Key Vault Integration
+# Maps Key Vault secrets → K8s Secret for env injection.
+#
+# Prerequisites:
+#   - Azure Key Vault with secrets:
+#       TELEGRAM-BOT-TOKEN, GOOGLE-AI-API-KEY, NOTION-TOKEN
+#   - User Assigned Managed Identity with Key Vault access
+#   - AKS Secrets Store CSI Driver addon enabled
+# ============================================================
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: knowledgeflow-kv
+  labels:
+    app: knowledgeflow
+spec:
+  provider: azure
+  parameters:
+    usePodIdentity: "false"
+    useVMManagedIdentity: "true"
+    userAssignedIdentityID: "490f0970-2d3e-495a-b4f6-a06c0423f859"
+    keyvaultName: "KnowledgeFlow-kv"
+    tenantId: "e3df75a5-2d70-44ee-ba17-4657ce987258"
+    objects: |
+      array:
+        - |
+          objectName: TELEGRAM-BOT-TOKEN
+          objectType: secret
+        - |
+          objectName: GOOGLE-AI-API-KEY
+          objectType: secret
+        - |
+          objectName: NOTION-TOKEN
+          objectType: secret
+  # Sync Key Vault secrets into a K8s Secret so they can be
+  # used as env vars via secretKeyRef in the Deployment.
+  secretObjects:
+    - secretName: knowledgeflow-kv-secrets
+      type: Opaque
+      data:
+        - objectName: TELEGRAM-BOT-TOKEN
+          key: TELEGRAM-BOT-TOKEN
+        - objectName: GOOGLE-AI-API-KEY
+          key: GOOGLE-AI-API-KEY
+        - objectName: NOTION-TOKEN
+          key: NOTION-TOKEN
