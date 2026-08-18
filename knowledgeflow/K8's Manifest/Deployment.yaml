@@ -49,10 +49,24 @@ spec:
         app: knowledgeflow
         version: "1.0.0"
     spec:
+      # ── Init Container ──────────────────────────────────────
+      # Copies cookies.txt from read-only ConfigMap to a writable
+      # emptyDir so yt-dlp can modify it at runtime.
+      initContainers:
+        - name: copy-cookies
+          image: busybox:1.36
+          command: ["sh", "-c", "cp /cookies-source/cookies.txt /cookies-writable/cookies.txt"]
+          volumeMounts:
+            - name: cookies-source
+              mountPath: /cookies-source
+              readOnly: true
+            - name: cookies-writable
+              mountPath: /cookies-writable
+
       containers:
         - name: knowledgeflow
           # ── ACR Image ────────────────────────────────────────
-          image: resourcescrapperacr.azurecr.io/resourcescrapper:latest
+          image: resourcescrapperacr.azurecr.io/resourcescrapper:9
           imagePullPolicy: Always
 
           # No ports exposed — this is a worker process (Telegram bot),
@@ -111,10 +125,6 @@ spec:
             - name: cache-data
               mountPath: /app/.cache
 
-            # Mount prompts directory (read-only, from repo/image)
-            - name: prompts
-              mountPath: /app/prompts
-              readOnly: true
 
             # Mount config.yaml from ConfigMap
             - name: config
@@ -122,11 +132,10 @@ spec:
               subPath: config.yaml
               readOnly: true
 
-            # Mount cookies.txt from ConfigMap
-            - name: cookies
+            # Mount writable cookies.txt (copied by initContainer)
+            - name: cookies-writable
               mountPath: /app/cookies.txt
               subPath: cookies.txt
-              readOnly: true
 
             # Logs directory
             - name: logs
@@ -172,16 +181,17 @@ spec:
           persistentVolumeClaim:
             claimName: knowledgeflow-cache-pvc
 
-        - name: prompts
-          emptyDir: {}
 
         - name: config
           configMap:
             name: knowledgeflow-config
 
-        - name: cookies
+        - name: cookies-source
           configMap:
             name: knowledgeflow-cookies
+
+        - name: cookies-writable
+          emptyDir: {}
 
         - name: logs
           emptyDir: {}

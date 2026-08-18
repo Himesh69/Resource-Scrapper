@@ -22,11 +22,11 @@ data:
   # ── Notion Database IDs ───────────────────────────────────
   # These are not secrets — they're public-facing database IDs.
   # Fill in your values from: python scripts/setup_notion.py
-  NOTION_SOURCES_DB_ID: "<your-sources-db-id>"
-  NOTION_RESOURCES_DB_ID: "<your-resources-db-id>"
-  NOTION_CATEGORIES_DB_ID: "<your-categories-db-id>"
-  NOTION_CREATORS_DB_ID: "<your-creators-db-id>"
-  NOTION_KNOWLEDGE_DB_ID: "<your-knowledge-db-id>"
+  NOTION_SOURCES_DB_ID: "63cf61a3-7281-45d5-ad24-4939b96438cd"
+  NOTION_RESOURCES_DB_ID: "157cbe09-da83-4d6c-9b75-2b5fead43447"
+  NOTION_CATEGORIES_DB_ID: "280aea8a-c8b8-4312-accc-4ff5d28396ab"
+  NOTION_CREATORS_DB_ID: "7f8637c0-3466-4c06-be2f-19f188835343"
+  NOTION_KNOWLEDGE_DB_ID: "32943e99-529d-4be3-b15f-f196ad8ec5f7"
 
   # ── App Behaviour ─────────────────────────────────────────
   MAX_CONCURRENT_JOBS: "3"
