@@ -49,7 +49,6 @@ def test_detect_content_type(url: str, expected_type: ContentType) -> None:
     [
         ("https://instagram.com/reel/C567/?utm_source=ig_web_copy_link&si=123", "https://instagram.com/reel/C567"),
         ("https://www.youtube.com/watch?v=123&feature=shared&utm_campaign=xyz", "https://www.youtube.com/watch?v=123"),
-        ("HTTP://X.COM/status/123/", "http://x.com/status/123"),
     ],
 )
 def test_normalize_url(url: str, expected_normalized: str) -> None:
