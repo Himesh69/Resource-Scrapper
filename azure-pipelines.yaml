@@ -1,0 +1,186 @@
+# Docker
+# Build and push an image to Azure Container Registry
+# https://docs.microsoft.com/azure/devops/pipelines/languages/docker
+
+trigger:
+  paths:
+    include:
+      - knowledgeflow/*
+
+
+resources:
+- repo: self
+
+variables:
+  # Container registry service connection established during pipeline creation
+  dockerRegistryServiceConnection: '######'
+  imageRepository: 'resourcescrapper'
+  containerRegistry: 'resourcescrapperacr.azurecr.io'
+  dockerfilePath: '$(Build.SourcesDirectory)/knowledgeflow/Dockerfile'
+  tag: '$(Build.BuildId)'
+
+pool:
+  name: 'Default'
+
+
+stages:
+# ── Stage 1: Checkout & Unit Tests ──────────────────────────
+- stage: CheckoutAndTest
+  displayName: Checkout & Unit Tests
+  jobs:
+  - job: Test
+    displayName: Checkout code & Run pytest
+    steps:
+    - checkout: self
+      displayName: Checkout source code
+      clean: true
+
+    - task: Bash@3
+      displayName: Install Python dependencies
+      inputs:
+        targetType: inline
+        script: |
+          echo "── Creating virtual environment ──"
+          python3 -m venv $(Build.SourcesDirectory)/.venv
+          source $(Build.SourcesDirectory)/.venv/bin/activate
+          echo "── Installing pip dependencies ──"
+          pip install --upgrade pip
+          pip install -r $(Build.SourcesDirectory)/knowledgeflow/requirements.txt
+
+    - task: Bash@3
+      displayName: Run unit tests (pytest)
+      inputs:
+        targetType: inline
+        script: |
+          source $(Build.SourcesDirectory)/.venv/bin/activate
+          echo "── Running unit tests ──"
+          cd $(Build.SourcesDirectory)/knowledgeflow
+
+          # Set dummy env vars for Pydantic validation (not real secrets)
+          export TELEGRAM_BOT_TOKEN="test-dummy-token"
+          export GOOGLE_AI_API_KEY="test-dummy-key"
+          export NOTION_TOKEN="test-dummy-notion-token"
+
+          python -m pytest tests/unit/ -v --tb=short --junitxml=$(Build.SourcesDirectory)/test-results.xml
+
+    - task: PublishTestResults@2
+      displayName: Publish test results
+      condition: succeededOrFailed()
+      inputs:
+        testResultsFormat: 'JUnit'
+        testResultsFiles: '$(Build.SourcesDirectory)/test-results.xml'
+        testRunTitle: 'KnowledgeFlow Unit Tests'
+
+# ── Stage 2: Build Docker Image ─────────────────────────────
+- stage: Build
+  displayName: Building image
+  jobs:
+  - job: Build
+    displayName: Build
+    steps:
+    - task: Docker@2
+      displayName: Building the docker image
+      inputs:
+        containerRegistry: '$(dockerRegistryServiceConnection)'
+        repository: '$(imageRepository)'
+        command: 'build'
+        Dockerfile: 'knowledgeflow/Dockerfile'
+        tags: '$(tag)'
+
+# ── Stage 3: Trivy Vulnerability Scan ────────────────────────
+- stage: Scanning
+  displayName: Scanning for the vulnerabilities Using Trivy
+  jobs:
+    - job: Scan
+      displayName: Scanning the image
+      steps:
+        - task: Bash@3
+          displayName: "Run Trivy Scan"
+          inputs:
+            targetType: inline
+            script: |
+              trivy image --severity HIGH,CRITICAL,MEDIUM --ignore-unfixed $(containerRegistry)/$(imageRepository):$(tag)
+
+        - task: Bash@3
+          displayName: "Generate Trivy JUnit Report"
+          inputs:
+            targetType: inline
+            script: |
+              trivy image --severity HIGH,CRITICAL,MEDIUM --ignore-unfixed --format template --template "@/usr/local/share/trivy/templates/junit.tpl" -o $(Build.SourcesDirectory)/trivy-report.xml $(containerRegistry)/$(imageRepository):$(tag)
+
+        - task: PublishTestResults@2
+          displayName: Publish Trivy scan results
+          condition: succeededOrFailed()
+          inputs:
+            testResultsFormat: 'JUnit'
+            testResultsFiles: '$(Build.SourcesDirectory)/trivy-report.xml'
+            testRunTitle: 'Trivy Vulnerability Scan'
+
+# ── Stage 4: Push Image to ACR ───────────────────────────────
+- stage: Push
+  displayName: Pushing image into Acr
+  jobs:
+  - job: Push
+    displayName: Pushing the image
+    steps:
+    - task: Docker@2
+      displayName: Pushing the image to Acr
+      inputs:
+        containerRegistry: '$(dockerRegistryServiceConnection)'
+        repository: '$(imageRepository)'
+        command: 'push'
+        tags: '$(tag)'
+
+# ── Stage 5: Update K8s Manifest for ArgoCD ─────────────────
+- stage: UpdateManifest
+  displayName: Update K8s Manifest (ArgoCD trigger)
+  jobs:
+  - job: UpdateTag
+    displayName: Update image tag in Deployment.yaml
+    steps:
+    - task: Bash@3
+      displayName: Update image tag & push to repo
+      env:
+        SYSTEM_TOKEN: $(System.AccessToken)
+      inputs:
+        targetType: inline
+        script: |
+          set -ex
+
+          # Path to the Deployment file (handle apostrophe in folder name)
+          DEPLOY_PATH="knowledgeflow/K8's Manifest/Deployment.yaml"
+
+          # Build the authenticated repo URL
+          # $(System.CollectionUri) = https://dev.azure.com/orgname/
+          COLLECTION_URI="$(System.CollectionUri)"
+          # Insert token after https://
+          REPO_URL="${COLLECTION_URI}$(System.TeamProject)/_git/$(Build.Repository.Name)"
+          REPO_URL="${REPO_URL/https:\/\//https:\/\/${SYSTEM_TOKEN}@}"
+
+          # Clone the git repository into the /tmp directory
+          git clone "$REPO_URL" /tmp/temp_repo
+
+          # Navigate into the cloned repository directory
+          cd /tmp/temp_repo
+
+          # Configure git identity
+          git config user.email "azure-pipeline@dev.azure.com"
+          git config user.name "Azure Pipeline"
+
+          # Update ONLY the container image tag line (matches the ACR image line specifically)
+          sed -i "s|image: $(containerRegistry)/$(imageRepository):.*|image: $(containerRegistry)/$(imageRepository):$(tag)|g" "$DEPLOY_PATH"
+
+          # Verify the change
+          echo "── Updated image line: ──"
+          grep "image:" "$DEPLOY_PATH"
+
+          # Commit and push
+          git add .
+          git commit -m "ci: update image tag to $(tag) [skip ci]"
+          git push
+
+          # Cleanup
+          cd /
+          rm -rf /tmp/temp_repo
+
+          echo "── Manifest updated. ArgoCD will detect the change and deploy. ──"
