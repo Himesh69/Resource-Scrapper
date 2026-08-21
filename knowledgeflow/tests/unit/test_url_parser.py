@@ -52,5 +52,5 @@ def test_detect_content_type(url: str, expected_type: ContentType) -> None:
     ],
 )
 def test_normalize_url(url: str, expected_normalized: str) -> None:
-    """Test that tracking params are stripped and format is normalized."""
+    """Test that tracking params are stripped and format is now normalized."""
     assert normalize_url(url) == expected_normalized
